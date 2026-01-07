@@ -1,53 +1,36 @@
-import requests
-import pandas as pd
-import io
-import asyncio
-import os
-from telegram import Bot
+import requests, pandas as pd, io, asyncio, os
+from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
 
-# GitHub Secrets se data uthane ke liye os.getenv use hota hai
 TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHAT_ID = os.getenv('CHAT_ID')
+BLOG_URL = "https://yourblog.blogspot.com" # Apna Blogger link yahan dalein
 
 async def send_vpn_update():
-    print("Fetching live servers from VPNGate...")
+    print("Fetching servers...")
     url = "https://www.vpngate.net/api/iphone/"
+    response = requests.get(url)
+    data = "\n".join(response.text.split('\n')[1:-2]).replace('*', '')
+    df = pd.read_csv(io.StringIO(data))
+    df['Ping'] = pd.to_numeric(df['Ping'], errors='coerce')
+    df = df.dropna(subset=['Ping']).sort_values(by='Ping')
     
-    try:
-        response = requests.get(url)
-        # Data cleaning logic
-        lines = response.text.split('\n')
-        data = "\n".join(lines[1:-2]).replace('*', '')
-        df = pd.read_csv(io.StringIO(data))
-        
-        # Ping check aur best servers filter
-        df['Ping'] = pd.to_numeric(df['Ping'], errors='coerce')
-        df = df.dropna(subset=['Ping']).sort_values(by='Ping')
-        
-        # Top 8 fastest servers
-        top_servers = df.head(8) 
-        
-        message = "🛡️ *MISSION MERIT VPN LIVE* 🛡️\n"
-        message += "━━━━━━━━━━━━━━━━━━\n\n"
-        
-        for _, row in top_servers.iterrows():
-            icon = "🟢" if row['Ping'] < 60 else "🟡"
-            message += f"{icon} *Country:* {row['CountryLong']}\n"
-            message += f"🌐 *IP:* `{row['IP']}`\n"
-            message += f"⚡ *Ping:* {int(row['Ping'])}ms\n"
-            message += f"📥 *Speed:* {round(row['Speed']/10**6, 2)} Mbps\n"
-            message += "━━━━━━━━━━━━━━━━━━\n"
-            
-        message += "\n👤 *User:* `vpn` | 🔑 *Pass:* `vpn` \n"
-        message += "\n🔄 _Next update in 1 hour_"
-        
-        bot = Bot(token=TOKEN)
-        await bot.send_message(chat_id=CHAT_ID, text=message, parse_mode='Markdown')
-        print("✅ Success! Update sent to Telegram.")
-        
-    except Exception as e:
-        print(f"❌ Error: {e}")
+    top_servers = df.head(8)
+    message = "🛡️ *MISSION MERIT VPN LIVE* 🛡️\n━━━━━━━━━━━━━━━━━━\n\n"
+    for _, row in top_servers.iterrows():
+        icon = "🟢" if row['Ping'] < 60 else "🟡"
+        message += f"{icon} *Country:* {row['CountryLong']}\n🌐 *IP:* `{row['IP']}`\n⚡ *Ping:* {int(row['Ping'])}ms\n━━━━━━━━━━━━━━━━━━\n"
+    
+    message += "\n👤 *User:* `vpn` | 🔑 *Pass:* `vpn` \n🔄 _Updated every hour_"
 
-# GitHub Actions environment mein asyncio run karne ka tarika
+    # Buttons for professional look
+    keyboard = [
+        [InlineKeyboardButton("📖 How to Connect (Guide)", url=BLOG_URL)],
+        [InlineKeyboardButton("💬 Contact Support", url="https://t.me/LUCIFERKAKA")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    bot = Bot(token=TOKEN)
+    await bot.send_message(chat_id=CHAT_ID, text=message, parse_mode='Markdown', reply_markup=reply_markup)
+
 if __name__ == "__main__":
     asyncio.run(send_vpn_update())
